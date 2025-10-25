@@ -82,7 +82,7 @@ def analyze_date_with_claude(current_text, accumulated_transcript, previous_warn
         for warning in previous_warnings:
             previous_warnings_text += f"- {warning['reason']}: {warning['message']}\n"
 
-    prompt = f"""You are monitoring a date conversation. Analyze the following transcript and determine if the person is discussing something really wrong that needs urgent changing.
+    prompt = f"""You are monitoring a date conversation. Analyze the following transcript and determine if the person is discussing something really wrong that needs urgent changing. Keep track of the flow of the conversation and only give suggestions based on what the male is saying.
 
 SPECIAL RULE: If they are talking about computer science topics, this is considered a really wrong topic that urgently needs to be changed.
 
