@@ -7,9 +7,50 @@ from datetime import datetime
 from dotenv import load_dotenv
 import requests
 import json
+import sqlite3
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Database setup
+DB_PATH = "date_summaries.db"
+
+def init_database():
+    """Initialize the SQLite database and create the table if it doesn't exist"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS date_summaries (
+            uid TEXT PRIMARY KEY,
+            summary TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def get_previous_summary(uid):
+    """Retrieve the previous date summary for a user"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT summary FROM date_summaries WHERE uid = ?", (uid,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def save_summary(uid, summary):
+    """Save or replace the date summary for a user"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO date_summaries (uid, summary, created_at)
+        VALUES (?, ?, ?)
+    """, (uid, summary, datetime.now()))
+    conn.commit()
+    conn.close()
+
+# Initialize database on startup
+init_database()
 
 app = FastAPI()
 
@@ -125,53 +166,84 @@ Be strict about computer science topics - any mention of programming, algorithms
         print(f"Response text was: {response_text if 'response_text' in locals() else 'N/A'}")
         return {"should_notify": False}
 
-def summarize_date_with_tips(accumulated_transcript):
+def summarize_date_with_tips(accumulated_transcript, previous_summary=None):
     """
     Calls Claude API to summarize the date and provide tips.
     Returns a string summary with tips for improvement.
+    If previous_summary is provided, includes comparison and improvement analysis.
     """
-    prompt = f"""You are an elite dating coach and conversational analyst. 
-    You will receive the full transcript of a completed date conversation. 
-    Your task is to perform a strategic breakdown of the interaction, focusing on 
-    social dynamics, emotional tone, and conversational flow. 
-    Analyze both parties’ behaviors and communication patterns 
-    like a professional behavioral psychologist and charisma trainer.
+    previous_context = ""
+    comparison_note = ""
+    improvements_section = ""
+    persistent_issues_section = ""
 
-    Based on the transcript, provide:
+    if previous_summary:
+        previous_context = f"""
 
-    Overall Summary:
-    A concise, insightful overview of how the date went — emotional tone, chemistry level, 
-    and conversational balance. Use clear language like “solid connection,” “one-sided flow,” or “surface-level rapport.”
+    PREVIOUS DATE SUMMARY:
+    {previous_summary}
 
-    Key Highlights:
-    Identify moments where the user demonstrated strong social awareness, confidence, humor, or authenticity. 
-    Quote short examples from the transcript where possible.
+    IMPORTANT: Compare this date to the previous one. Highlight specific improvements made,
+    areas where the user applied previous advice, and new areas that need attention.
+    Be concrete about what changed (better or worse) since the last date."""
+        comparison_note = " Explicitly state how this date compares to the previous one (better/worse/similar and why)."
+        improvements_section = "\n    - **Improvements from Last Date**: [List specific improvements observed]"
+        persistent_issues_section = "\n    - **Persistent Issues**: [Note any problems that carried over from the previous date]"
 
-    Areas for Improvement:
-    Pinpoint weak spots — e.g., missed opportunities, conversational dominance, over-explaining, lack of curiosity, 
-    awkward transitions, or low emotional attunement.
+    prompt = f"""You are an elite dating coach and conversational analyst. Provide a comprehensive, structured report on this date conversation. This is a REPORT ONLY - do not ask any follow-up questions or include prompts for the user to respond.{previous_context}
 
-    Emotional & Nonverbal Read (if cues exist):
-    Infer emotional cues, tension shifts, or power dynamics from tone, pacing, and phrasing. 
-    Note signals of mutual interest or disengagement.
+    Your analysis must follow this EXACT structure:
 
-    Actionable Takeaways (2–3):
-    Give clear, behavioral strategies for the next date — what to do more of, 
-    what to adjust, and how to elevate chemistry or flow. Avoid generic advice; make it 
-    targeted and specific (e.g., “mirror her pacing when she gets reflective,” 
-    “use open loops instead of direct compliments”).
+    # DATE PERFORMANCE REPORT
 
-    Weighted Scoring Breakdown
-    The overall score is determined by evaluating eight core categories, each with its own weight reflecting its impact on connection quality.
-    Emotional Awareness (20%) measures the ability to read and respond to emotional cues with empathy and timing.
-    Conversational Flow (20%) evaluates the balance, pacing, and natural rhythm of dialogue transitions.
-    Authenticity & Presence (15%) gauges how genuine, grounded, and emotionally congruent the user appears.
-    Curiosity & Engagement (15%) assesses the depth of interest, follow-up quality, and ability to sustain emotional threads.
-    Confidence (10%) captures assertiveness, ease, and composure in delivery.
-    Listening & Responsiveness (10%) reflects the capacity to validate, mirror, and align with the other person’s tone and energy.
-    Humor & Playfulness (5%) considers the natural use of humor, timing, and tension play that enhance connection.
-    Finally, Flirtation & Chemistry (5%) measures romantic tension, comfort with attraction, and playful relational energy.
-    Each category is scored from 1 to 10, and the final weighted average produces the overall score out of 10.
+    ## OVERALL ASSESSMENT
+    Provide a 2-3 sentence executive summary of the date's success. Include: chemistry level (strong/moderate/weak), conversational balance (balanced/one-sided), and overall vibe (engaged/surface-level/disconnected).{comparison_note}
+
+    ## PERFORMANCE SCORES
+
+    ### Overall Score: [X.X/10]
+
+    ### Category Breakdown:
+    - **Emotional Awareness (20%)**: [X/10] - [One sentence assessment]
+    - **Conversational Flow (20%)**: [X/10] - [One sentence assessment]
+    - **Authenticity & Presence (15%)**: [X/10] - [One sentence assessment]
+    - **Curiosity & Engagement (15%)**: [X/10] - [One sentence assessment]
+    - **Confidence (10%)**: [X/10] - [One sentence assessment]
+    - **Listening & Responsiveness (10%)**: [X/10] - [One sentence assessment]
+    - **Humor & Playfulness (5%)**: [X/10] - [One sentence assessment]
+    - **Flirtation & Chemistry (5%)**: [X/10] - [One sentence assessment]
+
+    ## KEY HIGHLIGHTS
+    List 3-4 specific moments where you excelled. Include brief quotes from the transcript.
+    - [Strength 1]: [Quote or paraphrase]
+    - [Strength 2]: [Quote or paraphrase]
+    - [Strength 3]: [Quote or paraphrase]{improvements_section}
+
+    ## CRITICAL WEAKNESSES
+    List 2-4 specific issues that hurt the connection. Be direct and specific.
+    - [Weakness 1]: [Specific example]
+    - [Weakness 2]: [Specific example]{persistent_issues_section}
+
+    ## EMOTIONAL DYNAMICS
+    Analyze the underlying emotional flow:
+    - **Interest Level**: [Their apparent interest - high/moderate/low with evidence]
+    - **Power Dynamic**: [Who led the conversation, energy balance]
+    - **Tension Points**: [Moments of awkwardness, disconnection, or friction]
+    - **Connection Moments**: [Moments of genuine rapport or chemistry]
+
+    ## ACTION PLAN FOR NEXT DATE
+    Provide 3 concrete, specific behavioral strategies. NO generic advice.
+    1. **[Strategy 1]**: [Specific action with example]
+    2. **[Strategy 2]**: [Specific action with example]
+    3. **[Strategy 3]**: [Specific action with example]
+
+    CRITICAL RULES:
+    - This is a REPORT. Do not include questions for the user.
+    - Do not ask "How did you feel about..." or any similar prompts
+    - Be direct, honest, and specific with examples
+    - Use actual quotes from the transcript when highlighting moments
+    - Keep each section concise but informative
+    - Focus on actionable insights, not platitudes
 
     Date transcript:
     {accumulated_transcript}"""
@@ -250,7 +322,7 @@ def livetranscript(transcript: dict, uid: str):
 
         # Check for "omi edit code word" command
         if "edit code word" in text_lower:
-            # Extract the next word after "omi edit code word"
+            # Extract the next word after "edit code word"
             parts = text_lower.split("edit code word")
             if len(parts) > 1 and parts[1].strip():
                 # Get the next word after the phrase
@@ -299,8 +371,22 @@ def livetranscript(transcript: dict, uid: str):
 
                 # Generate summary with tips using Claude
                 if current_date.accumulated_transcript.strip():
-                    summary = summarize_date_with_tips(current_date.accumulated_transcript)
+                    # Retrieve previous summary from database
+                    previous_summary = get_previous_summary(uid)
+
+                    # Generate new summary with comparison to previous date
+                    summary = summarize_date_with_tips(
+                        current_date.accumulated_transcript,
+                        previous_summary=previous_summary
+                    )
                     print(f"Generated date summary for user {uid}")
+
+                    if previous_summary:
+                        print(f"Compared with previous date and noted improvements")
+
+                    # Save new summary to database (replaces previous one automatically)
+                    save_summary(uid, summary)
+                    print(f"Saved new summary to database for user {uid}")
 
                     # Create memory in OMI
                     create_omi_memory(uid, summary)
