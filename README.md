@@ -18,7 +18,7 @@ A real-time date coaching assistant that monitors conversations and provides int
 
 ## Environment Variables
 
-Create a `.env` file in the parent directory (`/Users/alex/Personal/calhacks/`) with the following variables:
+Create a `.env` file with the following variables:
 
 ```
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
