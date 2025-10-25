@@ -182,8 +182,8 @@ def create_omi_memory(user_id, summary):
     """
     Creates a memory in OMI using the Import API.
     """
-    app_id = "01K8D0PAA9AATT7YKTV008F0J2"
-    api_key = os.environ.get("OMIAPIKEY")
+    app_id = os.environ.get("OMI_APP_ID")
+    api_key = os.environ.get("OMI_API_KEY")
 
     url = f"https://api.omi.me/v2/integrations/{app_id}/user/memories?uid={user_id}"
 

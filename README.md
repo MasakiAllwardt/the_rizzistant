@@ -22,7 +22,8 @@ Create a `.env` file in the parent directory (`/Users/alex/Personal/calhacks/`) 
 
 ```
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
-OMIAPIKEY=your_omi_api_key_here
+OMI_APP_ID=your_omi_app_id_here
+OMI_API_KEY=your_omi_api_key_here
 ```
 
 ## Quick Start
