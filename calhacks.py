@@ -129,39 +129,16 @@ def summarize_date_with_tips(accumulated_transcript):
     Calls Claude API to summarize the date and provide tips.
     Returns a string summary with tips for improvement.
     """
-    prompt = f"""You are an elite dating coach and conversational analyst. 
-    You will receive the full transcript of a completed date conversation. 
-    Your task is to perform a strategic breakdown of the interaction, focusing on 
-    social dynamics, emotional tone, and conversational flow. 
-    Analyze both parties’ behaviors and communication patterns 
-    like a professional behavioral psychologist and charisma trainer.
+    prompt = f"""You are a dating coach analyzing a completed date conversation. Based on the following transcript, provide:
+1. A brief summary of how the date went
+2. Key highlights (positive moments)
+3. Areas for improvement
+4. 2-3 actionable tips for future dates
 
-    Based on the transcript, provide:
+Date transcript:
+{accumulated_transcript}
 
-    Overall Summary:
-    A concise, insightful overview of how the date went — emotional tone, chemistry level, 
-    and conversational balance. Use clear language like “solid connection,” “one-sided flow,” or “surface-level rapport.”
-
-    Key Highlights:
-    Identify moments where the user demonstrated strong social awareness, confidence, humor, or authenticity. 
-    Quote short examples from the transcript where possible.
-
-    Areas for Improvement:
-    Pinpoint weak spots — e.g., missed opportunities, conversational dominance, over-explaining, lack of curiosity, 
-    awkward transitions, or low emotional attunement.
-
-    Emotional & Nonverbal Read (if cues exist):
-    Infer emotional cues, tension shifts, or power dynamics from tone, pacing, and phrasing. 
-    Note signals of mutual interest or disengagement.
-
-    Actionable Takeaways (2–3):
-    Give clear, behavioral strategies for the next date — what to do more of, 
-    what to adjust, and how to elevate chemistry or flow. Avoid generic advice; make it 
-    targeted and specific (e.g., “mirror her pacing when she gets reflective,” 
-    “use open loops instead of direct compliments”).
-
-    Date transcript:
-    {accumulated_transcript}"""
+Provide a concise, constructive summary that would be helpful for the person to review later."""
 
     try:
         message = client.messages.create(
