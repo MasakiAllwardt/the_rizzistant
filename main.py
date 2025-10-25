@@ -59,6 +59,7 @@ class User:
         self.dates = {}  # Dictionary of date_id -> DateObject
         self.current_date_id = None
         self.date_counter = 0
+        self.code_word = "peanuts"  # Default code word
 
 # Dictionary to store user objects
 users = {}
@@ -160,6 +161,18 @@ def summarize_date_with_tips(accumulated_transcript):
     targeted and specific (e.g., “mirror her pacing when she gets reflective,” 
     “use open loops instead of direct compliments”).
 
+    Weighted Scoring Breakdown
+    The overall score is determined by evaluating eight core categories, each with its own weight reflecting its impact on connection quality.
+    Emotional Awareness (20%) measures the ability to read and respond to emotional cues with empathy and timing.
+    Conversational Flow (20%) evaluates the balance, pacing, and natural rhythm of dialogue transitions.
+    Authenticity & Presence (15%) gauges how genuine, grounded, and emotionally congruent the user appears.
+    Curiosity & Engagement (15%) assesses the depth of interest, follow-up quality, and ability to sustain emotional threads.
+    Confidence (10%) captures assertiveness, ease, and composure in delivery.
+    Listening & Responsiveness (10%) reflects the capacity to validate, mirror, and align with the other person’s tone and energy.
+    Humor & Playfulness (5%) considers the natural use of humor, timing, and tension play that enhance connection.
+    Finally, Flirtation & Chemistry (5%) measures romantic tension, comfort with attraction, and playful relational energy.
+    Each category is scored from 1 to 10, and the final weighted average produces the overall score out of 10.
+
     Date transcript:
     {accumulated_transcript}"""
 
@@ -234,10 +247,37 @@ def livetranscript(transcript: dict, uid: str):
 
     print(f"Received {len(transcript['segments'])} segments in this request")
 
-    # First pass: check for start/end date commands
+    # First pass: check for start/end date commands and code word
     for segment in transcript["segments"]:
         text = segment["text"]
         text_lower = text.lower()
+
+        # Check for "omi edit code word" command
+        if "edit code word" in text_lower:
+            # Extract the next word after "omi edit code word"
+            parts = text_lower.split("edit code word")
+            if len(parts) > 1 and parts[1].strip():
+                # Get the next word after the phrase
+                remaining_text = parts[1].strip()
+                words = remaining_text.split()
+                if len(words) > 0:
+                    new_code_word = words[0]
+                    user.code_word = new_code_word
+                    print(f"Updated code word for user {uid} to: {new_code_word}")
+                    return {
+                        "message": f"Code word has been updated to: {new_code_word}",
+                        "should_notify": True,
+                        "event_type": "code_word_updated"
+                    }
+
+        # Check if code word is said
+        if user.code_word.lower() in text_lower:
+            print(f"Code word '{user.code_word}' detected for user {uid}")
+            return {
+                "message": "YOU HAVE A PHONE CALL",
+                "should_notify": True,
+                "event_type": "code_word_detected"
+            }
 
         # Check if "start date" is said
         if "start date" in text_lower:
