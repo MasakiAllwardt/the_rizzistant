@@ -1,3 +1,4 @@
 .env
 .venv
 date_summaries.db
+__pycache__/
