@@ -226,6 +226,10 @@ def create_omi_memory(user_id, summary):
             print(f"Response: {e.response.text}")
         return False
 
+@app.get('/')
+def root():
+    return {"message": "Rizz Meter API - Live Conversation Coaching"}
+
 @app.post("/webhook")
 def webhook(memory: dict, uid: str):
     print(memory)
@@ -352,4 +356,4 @@ def livetranscript(transcript: dict, uid: str):
     return {"message": "transcript processed", "should_notify": False}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
