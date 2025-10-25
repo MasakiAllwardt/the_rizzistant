@@ -93,6 +93,12 @@ Respond ONLY with valid JSON, no other text. Use this exact format:
     "message": "the warning message to send to user if notification needed"
 }}
 
+CRITICAL: The warning message must be a SINGLE CASUAL SENTENCE that is funny and nonchalant. Be roasting and playful like a friend calling them out. Examples:
+- "yo shut up about one piece bro"
+- "bro really talking about python on a date rn"
+- "dawg nobody wants to hear about binary search trees"
+- "my guy you gotta chill with the anime talk"
+
 Be strict about computer science topics - any mention of programming, algorithms, data structures, etc. should trigger a notification. However, do NOT send duplicate warnings for issues you've already warned about."""
 
     try:
@@ -124,6 +130,43 @@ Be strict about computer science topics - any mention of programming, algorithms
         print(f"Error calling Claude API: {e}")
         print(f"Response text was: {response_text if 'response_text' in locals() else 'N/A'}")
         return {"should_notify": False}
+
+def generate_conversation_tip(accumulated_transcript):
+    """
+    Calls Claude API to generate a helpful conversation tip when the user seems stuck.
+    Returns a string with a helpful tip to continue the conversation.
+    """
+    prompt = f"""You are a real-time dating coach. The person on a date just said something like "yeah okay so" which suggests they might be stuck or transitioning awkwardly in the conversation.
+
+Based on the conversation so far, provide ONE short, actionable tip (very short sentences) to help them continue the conversation naturally and engagingly.
+
+Make the tip specific to their current conversation context if possible. Focus on:
+- Asking an interesting follow-up question
+- Sharing a related personal story
+- Making a playful observation
+- Changing the topic smoothly
+- For example, if the girl mentioned an interest earlier in the date say "ask her to expand more on figure skating"
+Keep it casual and conversational, not robotic. Don't mention that they said "yeah okay so".
+
+Date transcript so far:
+{accumulated_transcript}
+
+Respond with ONLY the tip, no extra formatting or preamble."""
+
+    try:
+        message = client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=256,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        tip = message.content[0].text.strip()
+        return tip
+    except Exception as e:
+        print(f"Error calling Claude API for conversation tip: {e}")
+        return "Try asking them about something they're passionate about!"
 
 def summarize_date_with_tips(accumulated_transcript):
     """
@@ -331,6 +374,19 @@ def livetranscript(transcript: dict, uid: str):
                 print(f"got transcript batch {current_date.count}")
                 current_date.add_transcript(concatenated_text)
 
+                # Check for "yeah okay so" phrase (case-insensitive, ignore punctuation)
+                import re
+                # Remove punctuation and convert to lowercase for checking
+                text_normalized = re.sub(r'[^\w\s]', '', concatenated_text.lower())
+                if "yeah okay so" in text_normalized:
+                    print(f"Detected 'yeah okay so' - generating conversation tip")
+                    tip = generate_conversation_tip(current_date.accumulated_transcript)
+                    return {
+                        "message": tip,
+                        "should_notify": True,
+                        "event_type": "conversation_tip"
+                    }
+
                 # Analyze with Claude API once, passing previous warnings
                 analysis = analyze_date_with_claude(
                     concatenated_text,
@@ -353,7 +409,7 @@ def livetranscript(transcript: dict, uid: str):
                         "should_notify": True
                     }
 
-    return {"message": "transcript processed", "should_notify": False}
+    #return {"message": "transcript processed", "should_notify": False}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
