@@ -160,6 +160,18 @@ def summarize_date_with_tips(accumulated_transcript):
     targeted and specific (e.g., “mirror her pacing when she gets reflective,” 
     “use open loops instead of direct compliments”).
 
+    Weighted Scoring Breakdown
+    The overall score is determined by evaluating eight core categories, each with its own weight reflecting its impact on connection quality.
+    Emotional Awareness (20%) measures the ability to read and respond to emotional cues with empathy and timing.
+    Conversational Flow (20%) evaluates the balance, pacing, and natural rhythm of dialogue transitions.
+    Authenticity & Presence (15%) gauges how genuine, grounded, and emotionally congruent the user appears.
+    Curiosity & Engagement (15%) assesses the depth of interest, follow-up quality, and ability to sustain emotional threads.
+    Confidence (10%) captures assertiveness, ease, and composure in delivery.
+    Listening & Responsiveness (10%) reflects the capacity to validate, mirror, and align with the other person’s tone and energy.
+    Humor & Playfulness (5%) considers the natural use of humor, timing, and tension play that enhance connection.
+    Finally, Flirtation & Chemistry (5%) measures romantic tension, comfort with attraction, and playful relational energy.
+    Each category is scored from 1 to 10, and the final weighted average produces the overall score out of 10.
+
     Date transcript:
     {accumulated_transcript}"""
 
