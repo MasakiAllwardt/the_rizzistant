@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import requests
 import json
 import sqlite3
+from twilio.rest import Client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -66,6 +67,12 @@ app.add_middleware(
 # Initialize Claude API client
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+# Initialize Twilio client
+twilio_client = Client(
+    os.environ.get("TWILIO_ACCOUNT_SID"),
+    os.environ.get("TWILIO_AUTH_TOKEN")
+)
+
 class DateObject:
     def __init__(self, date_id):
         self.date_id = date_id
@@ -116,7 +123,7 @@ def analyze_date_with_claude(current_text, accumulated_transcript, previous_warn
         for warning in previous_warnings:
             previous_warnings_text += f"- {warning['reason']}: {warning['message']}\n"
 
-    prompt = f"""You are monitoring a date conversation. Analyze the following transcript and determine if the person is discussing something really wrong that needs urgent changing.
+    prompt = f"""You are monitoring a date conversation. Analyze the following transcript and determine if the person is discussing something really wrong that needs urgent changing. Keep track of the flow of the conversation and only give suggestions based on what the male is saying.
 
 SPECIAL RULE: If they are talking about computer science topics, this is considered a really wrong topic that urgently needs to be changed.
 
@@ -133,6 +140,12 @@ Respond ONLY with valid JSON, no other text. Use this exact format:
     "reason": "brief reason if notification needed",
     "message": "the warning message to send to user if notification needed"
 }}
+
+CRITICAL: The warning message must be a SINGLE CASUAL SENTENCE that is funny and nonchalant. Be roasting and playful like a friend calling them out. Examples:
+- "yo shut up about one piece bro"
+- "bro really talking about python on a date rn"
+- "dawg nobody wants to hear about binary search trees"
+- "my guy you gotta chill with the anime talk"
 
 Be strict about computer science topics - any mention of programming, algorithms, data structures, etc. should trigger a notification. However, do NOT send duplicate warnings for issues you've already warned about."""
 
@@ -166,7 +179,44 @@ Be strict about computer science topics - any mention of programming, algorithms
         print(f"Response text was: {response_text if 'response_text' in locals() else 'N/A'}")
         return {"should_notify": False}
 
-def summarize_date_with_tips(accumulated_transcript, previous_summary=None):
+def generate_conversation_tip(accumulated_transcript):
+    """
+    Calls Claude API to generate a helpful conversation tip when the user seems stuck.
+    Returns a string with a helpful tip to continue the conversation.
+    """
+    prompt = f"""You are a real-time dating coach. The person on a date just said something like "yeah okay so" which suggests they might be stuck or transitioning awkwardly in the conversation.
+
+Based on the conversation so far, provide ONE short, actionable tip (very short sentences) to help them continue the conversation naturally and engagingly.
+
+Make the tip specific to their current conversation context if possible. Focus on:
+- Asking an interesting follow-up question
+- Sharing a related personal story
+- Making a playful observation
+- Changing the topic smoothly
+- For example, if the girl mentioned an interest earlier in the date say "ask her to expand more on figure skating"
+Keep it casual and conversational, not robotic. Don't mention that they said "yeah okay so".
+
+Date transcript so far:
+{accumulated_transcript}
+
+Respond with ONLY the tip, no extra formatting or preamble."""
+
+    try:
+        message = client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=256,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+
+        tip = message.content[0].text.strip()
+        return tip
+    except Exception as e:
+        print(f"Error calling Claude API for conversation tip: {e}")
+        return "Try asking them about something they're passionate about!"
+
+def summarize_date_with_tips(accumulated_transcript):
     """
     Calls Claude API to summarize the date and provide tips.
     Returns a string summary with tips for improvement.
@@ -298,6 +348,35 @@ def create_omi_memory(user_id, summary):
             print(f"Response: {e.response.text}")
         return False
 
+def make_phone_call():
+    """
+    Makes a phone call using Twilio when code word is detected.
+    """
+    try:
+        phone_number = os.environ.get("PHONE_NUMBER")
+        twilio_phone_number = os.environ.get("TWILIO_PHONE_NUMBER")
+        
+        if not phone_number or not twilio_phone_number:
+            print("Error: PHONE_NUMBER or TWILIO_PHONE_NUMBER not set in environment")
+            return False
+        
+        # Make the call - you can customize the TwiML URL or use inline TwiML
+        call = twilio_client.calls.create(
+            to=phone_number,
+            from_=twilio_phone_number,
+            twiml='<Response><Say>You have an urgent phone call. This is your emergency exit.</Say></Response>'
+        )
+        
+        print(f"Phone call initiated successfully. Call SID: {call.sid}")
+        return True
+    except Exception as e:
+        print(f"Error making phone call: {e}")
+        return False
+
+@app.get('/')
+def root():
+    return {"message": "Rizz Meter API - Live Conversation Coaching"}
+
 @app.post("/webhook")
 def webhook(memory: dict, uid: str):
     print(memory)
@@ -341,11 +420,29 @@ def livetranscript(transcript: dict, uid: str):
         # Check if code word is said
         if user.code_word.lower() in text_lower:
             print(f"Code word '{user.code_word}' detected for user {uid}")
-            return {
-                "message": "YOU HAVE A PHONE CALL",
-                "should_notify": True,
-                "event_type": "code_word_detected"
-            }
+            # Make the phone call
+            call_success = make_phone_call()
+
+            print(f"Ending date for user {uid}")
+            if user.current_date_id and user.current_date_id in user.dates:
+                current_date = user.dates[user.current_date_id]
+                current_date.finalize()
+
+                # Generate summary with tips using Claude
+                if current_date.accumulated_transcript.strip():
+                    summary = summarize_date_with_tips(current_date.accumulated_transcript)
+                    print(f"Generated date summary for user {uid}")
+
+                    # Create memory in OMI
+                    create_omi_memory(uid, summary)
+
+                user.current_date_id = None
+
+                return {
+                    "message": "Date ended! Your date summary has been saved.",
+                    "should_notify": True,
+                    "event_type": "date_ended"
+                }
 
         # Check if "start date" is said
         if "start date" in text_lower:
@@ -413,6 +510,19 @@ def livetranscript(transcript: dict, uid: str):
                 print(f"got transcript batch {current_date.count}")
                 current_date.add_transcript(concatenated_text)
 
+                # Check for "yeah okay so" phrase (case-insensitive, ignore punctuation)
+                import re
+                # Remove punctuation and convert to lowercase for checking
+                text_normalized = re.sub(r'[^\w\s]', '', concatenated_text.lower())
+                if "yeah okay so" in text_normalized:
+                    print(f"Detected 'yeah okay so' - generating conversation tip")
+                    tip = generate_conversation_tip(current_date.accumulated_transcript)
+                    return {
+                        "message": tip,
+                        "should_notify": True,
+                        "event_type": "conversation_tip"
+                    }
+
                 # Analyze with Claude API once, passing previous warnings
                 analysis = analyze_date_with_claude(
                     concatenated_text,
@@ -435,7 +545,7 @@ def livetranscript(transcript: dict, uid: str):
                         "should_notify": True
                     }
 
-    return {"message": "transcript processed", "should_notify": False}
+    #return {"message": "transcript processed", "should_notify": False}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
