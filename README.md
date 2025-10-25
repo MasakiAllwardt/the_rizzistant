@@ -18,13 +18,7 @@ A real-time date coaching assistant that monitors conversations and provides int
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
-
-```
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-OMI_APP_ID=your_omi_app_id_here
-OMI_API_KEY=your_omi_api_key_here
-```
+Create a `.env` file in the project root with your actual credentials. You can use `.env.example` as a template.
 
 ## Quick Start
 
