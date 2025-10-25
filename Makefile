@@ -14,7 +14,7 @@ build:
 start:
 	@docker stop $(CONTAINER_NAME) 2>/dev/null || true
 	@docker rm $(CONTAINER_NAME) 2>/dev/null || true
-	docker run -d --name $(CONTAINER_NAME) -p $(PORT):$(PORT) --env-file ../.env $(IMAGE_NAME)
+	docker run -d --name $(CONTAINER_NAME) -p $(PORT):$(PORT) --env-file .env $(IMAGE_NAME)
 	@echo "App running at: http://localhost:$(PORT)"
 
 # Stop container

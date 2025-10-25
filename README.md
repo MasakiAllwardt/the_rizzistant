@@ -40,7 +40,7 @@ OMIAPIKEY=your_omi_api_key_here
    ```
    The app will be running at `http://localhost:8000`
 
-3. **Expose with ngrok**
+3. **Expose with ngrok (if running locally)**
    ```bash
    ngrok http 8000
    ```
@@ -76,9 +76,3 @@ Health check endpoint.
 3. **Smart Warnings**: The system detects problematic topics (especially CS-related) and provides coaching
 4. **Warning Deduplication**: Prevents sending duplicate warnings for the same issue
 5. **Post-Date Summary**: Generates a comprehensive summary with tips after each date
-
-## Port Configuration
-
-Default port: `8000`
-
-To change the port, edit the `PORT` variable in the `Makefile`.
