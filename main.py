@@ -216,7 +216,7 @@ Respond with ONLY the tip, no extra formatting or preamble."""
         print(f"Error calling Claude API for conversation tip: {e}")
         return "Try asking them about something they're passionate about!"
 
-def summarize_date_with_tips(accumulated_transcript):
+def summarize_date_with_tips(accumulated_transcript, previous_summary=None):
     """
     Calls Claude API to summarize the date and provide tips.
     Returns a string summary with tips for improvement.
