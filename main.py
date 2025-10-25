@@ -59,6 +59,7 @@ class User:
         self.dates = {}  # Dictionary of date_id -> DateObject
         self.current_date_id = None
         self.date_counter = 0
+        self.code_word = "peanuts"  # Default code word
 
 # Dictionary to store user objects
 users = {}
@@ -242,10 +243,37 @@ def livetranscript(transcript: dict, uid: str):
 
     print(f"Received {len(transcript['segments'])} segments in this request")
 
-    # First pass: check for start/end date commands
+    # First pass: check for start/end date commands and code word
     for segment in transcript["segments"]:
         text = segment["text"]
         text_lower = text.lower()
+
+        # Check for "omi edit code word" command
+        if "edit code word" in text_lower:
+            # Extract the next word after "omi edit code word"
+            parts = text_lower.split("edit code word")
+            if len(parts) > 1 and parts[1].strip():
+                # Get the next word after the phrase
+                remaining_text = parts[1].strip()
+                words = remaining_text.split()
+                if len(words) > 0:
+                    new_code_word = words[0]
+                    user.code_word = new_code_word
+                    print(f"Updated code word for user {uid} to: {new_code_word}")
+                    return {
+                        "message": f"Code word has been updated to: {new_code_word}",
+                        "should_notify": True,
+                        "event_type": "code_word_updated"
+                    }
+
+        # Check if code word is said
+        if user.code_word.lower() in text_lower:
+            print(f"Code word '{user.code_word}' detected for user {uid}")
+            return {
+                "message": "YOU HAVE A PHONE CALL",
+                "should_notify": True,
+                "event_type": "code_word_detected"
+            }
 
         # Check if "start date" is said
         if "start date" in text_lower:
