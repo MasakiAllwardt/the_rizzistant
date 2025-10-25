@@ -30,18 +30,13 @@ OMI_API_KEY=your_omi_api_key_here
 
 ### Using Docker (Recommended)
 
-1. **Build the Docker image:**
+1. **Start Server**
    ```bash
-   make build
-   ```
-
-2. **Start the application:**
-   ```bash
-   make start
+   make dev
    ```
    The app will be running at `http://localhost:8000`
 
-3. **Expose with ngrok (if running locally)**
+2. **Expose with ngrok (if running locally)**
    ```bash
    ngrok http 8000
    ```
