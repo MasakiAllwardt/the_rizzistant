@@ -199,4 +199,4 @@ def livetranscript(transcript: dict, uid: str):
                         "should_notify": True
                     }
 
-    return {"message": "transcript processed", "should_notify": False}
+    # return {"message": "transcript processed", "should_notify": False}
