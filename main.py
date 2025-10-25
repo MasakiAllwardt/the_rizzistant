@@ -7,6 +7,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import requests
 import json
+from twilio.rest import Client
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +25,12 @@ app.add_middleware(
 
 # Initialize Claude API client
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+# Initialize Twilio client
+twilio_client = Client(
+    os.environ.get("TWILIO_ACCOUNT_SID"),
+    os.environ.get("TWILIO_AUTH_TOKEN")
+)
 
 class DateObject:
     def __init__(self, date_id):
@@ -226,6 +233,31 @@ def create_omi_memory(user_id, summary):
             print(f"Response: {e.response.text}")
         return False
 
+def make_phone_call():
+    """
+    Makes a phone call using Twilio when code word is detected.
+    """
+    try:
+        phone_number = os.environ.get("PHONE_NUMBER")
+        twilio_phone_number = os.environ.get("TWILIO_PHONE_NUMBER")
+        
+        if not phone_number or not twilio_phone_number:
+            print("Error: PHONE_NUMBER or TWILIO_PHONE_NUMBER not set in environment")
+            return False
+        
+        # Make the call - you can customize the TwiML URL or use inline TwiML
+        call = twilio_client.calls.create(
+            to=phone_number,
+            from_=twilio_phone_number,
+            twiml='<Response><Say>You have an urgent phone call. This is your emergency exit.</Say></Response>'
+        )
+        
+        print(f"Phone call initiated successfully. Call SID: {call.sid}")
+        return True
+    except Exception as e:
+        print(f"Error making phone call: {e}")
+        return False
+
 @app.get('/')
 def root():
     return {"message": "Rizz Meter API - Live Conversation Coaching"}
@@ -273,11 +305,29 @@ def livetranscript(transcript: dict, uid: str):
         # Check if code word is said
         if user.code_word.lower() in text_lower:
             print(f"Code word '{user.code_word}' detected for user {uid}")
-            return {
-                "message": "YOU HAVE A PHONE CALL",
-                "should_notify": True,
-                "event_type": "code_word_detected"
-            }
+            # Make the phone call
+            call_success = make_phone_call()
+
+            print(f"Ending date for user {uid}")
+            if user.current_date_id and user.current_date_id in user.dates:
+                current_date = user.dates[user.current_date_id]
+                current_date.finalize()
+
+                # Generate summary with tips using Claude
+                if current_date.accumulated_transcript.strip():
+                    summary = summarize_date_with_tips(current_date.accumulated_transcript)
+                    print(f"Generated date summary for user {uid}")
+
+                    # Create memory in OMI
+                    create_omi_memory(uid, summary)
+
+                user.current_date_id = None
+
+                return {
+                    "message": "Date ended! Your date summary has been saved.",
+                    "should_notify": True,
+                    "event_type": "date_ended"
+                }
 
         # Check if "start date" is said
         if "start date" in text_lower:
