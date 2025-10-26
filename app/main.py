@@ -3,9 +3,9 @@ import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import init_database, get_previous_summary, save_summary
+from app.database import init_database
 from app.models import get_or_create_user, DateObject
-from app.services import claude_service, twilio_service, omi_service
+from app.services import claude_service, twilio_service, omi_service, letta_service
 
 
 # Initialize database on startup
@@ -82,12 +82,17 @@ def livetranscript(transcript: dict, uid: str):
                 current_date = user.dates[user.current_date_id]
                 current_date.finalize()
 
-                # Generate summary with tips
+                # Generate summary with tips using Letta
                 if current_date.accumulated_transcript.strip():
-                    summary = claude_service.summarize_date(
+                    # Use Letta agent to generate summary with full historical context
+                    # Letta automatically has access to all previous dates via its memory
+                    summary = letta_service.process_date_end(
+                        uid,
                         current_date.accumulated_transcript
                     )
-                    print(f"Generated date summary for user {uid}")
+                    print(f"Generated date summary for user {uid} via Letta")
+
+                    # Send to OMI for external memory storage
                     omi_service.create_memory(uid, summary)
 
                 user.current_date_id = None
@@ -119,26 +124,18 @@ def livetranscript(transcript: dict, uid: str):
                 current_date = user.dates[user.current_date_id]
                 current_date.finalize()
 
-                # Generate summary with tips
+                # Generate summary with tips using Letta
                 if current_date.accumulated_transcript.strip():
-                    # Retrieve previous summary from database
-                    previous_summary = get_previous_summary(uid)
-
-                    # Generate new summary with comparison to previous date
-                    summary = claude_service.summarize_date(
-                        current_date.accumulated_transcript,
-                        previous_summary=previous_summary
+                    # Use Letta agent to generate summary with full historical context
+                    # Letta automatically has access to all previous dates via its memory
+                    summary = letta_service.process_date_end(
+                        uid,
+                        current_date.accumulated_transcript
                     )
-                    print(f"Generated date summary for user {uid}")
+                    print(f"Generated date summary for user {uid} via Letta")
 
-                    if previous_summary:
-                        print(f"Compared with previous date and noted improvements")
-
-                    # Save new summary to database
-                    save_summary(uid, summary)
-                    print(f"Saved new summary to database for user {uid}")
-
-                    # Create memory in OMI
+                    # Send to OMI for external memory storage
+                    print(f"Sending summary to OMI: {summary}")
                     omi_service.create_memory(uid, summary)
 
                 user.current_date_id = None

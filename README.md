@@ -41,10 +41,6 @@ Create a `.env` file in the project root with your actual credentials. You can u
 
 Receives live transcript segments and provides real-time coaching.
 
-### `POST /webhook`
-
-Webhook endpoint for receiving memory data.
-
 ### `GET /` (root)
 
 Health check endpoint.
@@ -65,4 +61,4 @@ Health check endpoint.
 2. **Real-time Analysis**: Each transcript batch is analyzed by Claude AI for conversation issues
 3. **Smart Warnings**: The system detects problematic topics (especially CS-related) and provides coaching
 4. **Warning Deduplication**: Prevents sending duplicate warnings for the same issue
-5. **Post-Date Summary**: Generates a comprehensive summary with tips after each date
+5. **Post-Date Summary**: Generates a comprehensive summary with tips after each date, WITH ACCESS TO PREVIOUS POST-DATE SUMMARIES AS WELL THANKS TO LETTA

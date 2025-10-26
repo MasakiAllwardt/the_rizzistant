@@ -4,3 +4,4 @@ requests
 anthropic
 python-dotenv
 twilio
+letta-client

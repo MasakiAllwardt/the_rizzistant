@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from anthropic import Anthropic
 from twilio.rest import Client
+from letta_client import Letta
 
 # Load environment variables from .env file
 load_dotenv()
@@ -22,6 +23,10 @@ def get_twilio_client():
         os.environ.get("TWILIO_AUTH_TOKEN")
     )
 
+def get_letta_client():
+    """Get initialized Letta API client"""
+    return Letta(token=os.environ.get("LETTA_API_KEY"))
+
 # Environment variables
 def get_env_var(key: str, default=None):
     """Get environment variable with optional default"""
@@ -35,3 +40,6 @@ OMI_BASE_URL = "https://api.omi.me/v2"
 # Twilio configuration
 PHONE_NUMBER = os.environ.get("PHONE_NUMBER")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
+
+# Letta API configuration
+LETTA_API_KEY = os.environ.get("LETTA_API_KEY")

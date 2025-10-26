@@ -66,25 +66,13 @@ def build_date_summary_prompt(
     previous_summary: Optional[str] = None
 ) -> str:
     """Build prompt for summarizing the date and providing tips for improvement"""
-    previous_context = ""
-    comparison_note = ""
-    improvements_section = ""
-    persistent_issues_section = ""
+    comparison_note = " Explicitly state how this date compares to the previous one (better/worse/similar and why)."
+    improvements_section = "\n    - **Improvements from Last Date**: [List specific improvements observed]"
+    persistent_issues_section = "\n    - **Persistent Issues**: [Note any problems that carried over from the previous date]"
 
-    if previous_summary:
-        previous_context = f"""
+    return f"""You are an elite dating coach and conversational analyst. Provide a comprehensive, structured report on this date conversation. This is a REPORT ONLY - do not ask any follow-up questions or include prompts for the user to respond.
 
-    PREVIOUS DATE SUMMARY:
-    {previous_summary}
-
-    IMPORTANT: Compare this date to the previous one. Highlight specific improvements made,
-    areas where the user applied previous advice, and new areas that need attention.
-    Be concrete about what changed (better or worse) since the last date."""
-        comparison_note = " Explicitly state how this date compares to the previous one (better/worse/similar and why)."
-        improvements_section = "\n    - **Improvements from Last Date**: [List specific improvements observed]"
-        persistent_issues_section = "\n    - **Persistent Issues**: [Note any problems that carried over from the previous date]"
-
-    return f"""You are an elite dating coach and conversational analyst. Provide a comprehensive, structured report on this date conversation. This is a REPORT ONLY - do not ask any follow-up questions or include prompts for the user to respond.{previous_context}
+    IMPORTANT: Compare this date to the most recent previous Date Performance Report, REGARDLESS of if you think its relevant or not (the previous message will ALWAYS be a relevant past date). Highlight specific improvements made, areas where the user applied previous advice, and new areas that need attention. Be concrete about what changed (better or worse) since the last date.
 
     Your analysis must follow this EXACT structure:
 
@@ -139,5 +127,7 @@ def build_date_summary_prompt(
     - Keep each section concise but informative
     - Focus on actionable insights, not platitudes
 
-    Date transcript:
-    {accumulated_transcript}"""
+    Current date transcript:
+    {accumulated_transcript}
+    
+    Remember, if you want to do conversation_search, just search the query `date performance report`"""
