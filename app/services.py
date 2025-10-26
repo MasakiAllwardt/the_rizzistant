@@ -119,20 +119,23 @@ class TwilioService:
     def __init__(self):
         self.client = get_twilio_client()
 
-    def make_emergency_call(self) -> bool:
+    def make_emergency_call(self, phone_number: Optional[str] = None) -> bool:
         """Make an emergency phone call using Twilio when code word is detected"""
         try:
-            if not PHONE_NUMBER or not TWILIO_PHONE_NUMBER:
+            # Use provided phone number or fall back to environment variable
+            target_phone = phone_number or PHONE_NUMBER
+
+            if not target_phone or not TWILIO_PHONE_NUMBER:
                 print("Error: PHONE_NUMBER or TWILIO_PHONE_NUMBER not set in environment")
                 return False
 
             call = self.client.calls.create(
-                to=PHONE_NUMBER,
+                to=target_phone,
                 from_=TWILIO_PHONE_NUMBER,
                 twiml='<Response><Say>You have an urgent phone call. This is your emergency exit.</Say></Response>'
             )
 
-            print(f"Phone call initiated successfully. Call SID: {call.sid}")
+            print(f"Phone call initiated successfully to {target_phone}. Call SID: {call.sid}")
             return True
         except Exception as e:
             print(f"Error making phone call: {e}")

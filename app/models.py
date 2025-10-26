@@ -43,6 +43,7 @@ class User:
         self.current_date_id: Optional[str] = None
         self.date_counter = 0
         self.code_word = "peanuts"  # Default code word
+        self.phone_number: Optional[str] = None  # User's phone number
 
 
 # In-memory storage for user objects

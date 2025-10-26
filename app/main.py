@@ -70,12 +70,34 @@ def livetranscript(transcript: dict, uid: str):
                         "event_type": "code_word_updated"
                     }
 
+        # Check for "edit phone number" command
+        if "edit phone number" in text_lower:
+            parts = text_lower.split("edit phone number")
+            if len(parts) > 1 and parts[1].strip():
+                remaining_text = parts[1].strip()
+                # Extract digits only from the remaining text
+                digits = re.sub(r'\D', '', remaining_text)
+                # Check if we have exactly 10 digits
+                if len(digits) >= 10:
+                    phone_number = digits[:10]  # Take first 10 digits
+                    user.phone_number = phone_number
+                    print(f"Updated phone number for user {uid} to: {phone_number}")
+                    return {
+                        "message": f"Phone number has been updated to: {phone_number}",
+                        "event_type": "phone_number_updated"
+                    }
+            print(f"Unable to update phone number for user {uid}. We heard: {remaining_text}")
+            return {
+                "message": f"Unable to update phone number. We received: {remaining_text}",
+                "event_type": "phone_number_not_updated"
+            }
+
         # Check if code word is said (emergency exit)
         if user.code_word.lower() in text_lower:
             print(f"Code word '{user.code_word}' detected for user {uid}")
 
-            # Make the emergency phone call
-            twilio_service.make_emergency_call()
+            # Make the emergency phone call using user's saved phone number
+            twilio_service.make_emergency_call(user.phone_number)
 
             # End the date if active
             if user.current_date_id and user.current_date_id in user.dates:
