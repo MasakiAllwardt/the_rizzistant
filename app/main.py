@@ -135,6 +135,7 @@ def livetranscript(transcript: dict, uid: str):
                     print(f"Generated date summary for user {uid} via Letta")
 
                     # Send to OMI for external memory storage
+                    print(f"Sending summary to OMI: {summary}")
                     omi_service.create_memory(uid, summary)
 
                 user.current_date_id = None

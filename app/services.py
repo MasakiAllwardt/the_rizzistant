@@ -27,7 +27,7 @@ class ClaudeService:
 
     def __init__(self):
         self.client = get_claude_client()
-        self.model = "claude-haiku-4-5-20251015"
+        self.model = "claude-3-5-haiku-20241022"
 
     def analyze_date(
         self,
@@ -201,8 +201,9 @@ class LettaService:
 
         try:
             # Create a new agent for this user
+            # Letta agents get built-in tools including archival_memory_search by default
             agent_state = self.client.agents.create(
-                model="openai/gpt-4o",
+                model="anthropic/claude-3-5-sonnet-20241022",
                 embedding="openai/text-embedding-3-small",
                 memory_blocks=[
                     {
@@ -229,7 +230,7 @@ class LettaService:
     def process_date_end(self, user_id: str, transcript: str) -> str:
         """
         Process the end of a date by sending the transcript to the user's Letta agent.
-        The agent automatically has access to all previous dates via its persistent memory.
+        The agent automatically has access to all previous dates via its message history.
         Returns the summary text.
         """
         agent_id = self.get_or_create_agent(user_id)
@@ -237,13 +238,9 @@ class LettaService:
             return "Unable to generate date summary - Letta agent unavailable."
 
         try:
-            # Get the base prompt template
-            base_prompt = build_date_summary_prompt(transcript, previous_summary=None)
-
-            # Add instruction for Letta to use its own memory for comparisons
-            message_content = f"""Use your archival memory to recall all previous dates for this user. Compare this date to past dates, noting improvements and recurring patterns.
-
-{base_prompt}"""
+            # Use the existing prompt template - it already includes the transcript
+            # Letta agent will automatically see all previous dates in its message history
+            message_content = build_date_summary_prompt(transcript, previous_summary=None)
 
             # Send message to the agent
             response = self.client.agents.messages.create(
@@ -256,21 +253,30 @@ class LettaService:
                 ]
             )
 
-            # Extract the summary from the response
+            print(f"Response: {response}")
+
+            # Extract only the FINAL assistant message (skip internal thoughts and tool calls)
             summary = ""
-            for message in response.messages:
-                if hasattr(message, 'content'):
+            for message in reversed(response.messages):
+                # Find the last AssistantMessage with actual content
+                if message.message_type == 'assistant_message' and hasattr(message, 'content'):
                     if isinstance(message.content, str):
-                        summary += message.content
+                        summary = message.content
+                        break
                     elif isinstance(message.content, list):
                         for block in message.content:
                             if hasattr(block, 'text'):
                                 summary += block.text
+                        if summary:
+                            break
 
             if not summary:
                 return "Unable to generate date summary - no response from agent."
 
             print(f"Generated date summary for user {user_id} via Letta agent {agent_id}")
+
+            # Note: Summary is automatically stored in message history (recall memory)
+            # Agent can use conversation_search tool to find previous dates
             return summary.strip()
 
         except Exception as e:
