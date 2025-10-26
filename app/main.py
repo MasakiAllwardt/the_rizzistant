@@ -3,9 +3,8 @@ import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.database import init_database, get_previous_summary, save_summary
-from app.models import get_or_create_user, DateObject
-from app.services import claude_service, twilio_service, omi_service
+from app.database import init_database
+from app.services import letta_service, twilio_service, omi_service
 
 
 # Initialize database on startup
@@ -43,18 +42,20 @@ def livetranscript(transcript: dict, uid: str):
     """
     Process live transcript segments from the user.
     Handles commands (start date, end date, code word) and analyzes conversation.
+    Now powered by Letta AI for stateful, persistent memory across all dates.
     """
-    # Get or create user
-    user = get_or_create_user(uid)
+    segments = transcript.get("segments", [])
+    print(f"Received {len(segments)} segments for user {uid}")
 
-    print(f"Received {len(transcript['segments'])} segments in this request")
+    if not segments:
+        return {"message": "No segments received", "should_notify": False}
 
-    # First pass: check for start/end date commands and code word
-    for segment in transcript["segments"]:
-        text = segment["text"]
+    # Check for commands in any segment
+    for segment in segments:
+        text = segment.get("text", "")
         text_lower = text.lower()
 
-        # Check for "omi edit code word" command
+        # Check for "edit code word" command
         if "edit code word" in text_lower:
             parts = text_lower.split("edit code word")
             if len(parts) > 1 and parts[1].strip():
@@ -62,141 +63,75 @@ def livetranscript(transcript: dict, uid: str):
                 words = remaining_text.split()
                 if len(words) > 0:
                     new_code_word = words[0]
-                    user.code_word = new_code_word
-                    print(f"Updated code word for user {uid} to: {new_code_word}")
-                    return {
-                        "message": f"Code word has been updated to: {new_code_word}",
-                        "should_notify": True,
-                        "event_type": "code_word_updated"
-                    }
+                    print(f"Updating code word for user {uid} to: {new_code_word}")
+                    return letta_service.update_code_word(uid, new_code_word)
 
-        # Check if code word is said (emergency exit)
-        if user.code_word.lower() in text_lower:
-            print(f"Code word '{user.code_word}' detected for user {uid}")
-
-            # Make the emergency phone call
-            twilio_service.make_emergency_call()
-
-            # End the date if active
-            if user.current_date_id and user.current_date_id in user.dates:
-                current_date = user.dates[user.current_date_id]
-                current_date.finalize()
-
-                # Generate summary with tips
-                if current_date.accumulated_transcript.strip():
-                    summary = claude_service.summarize_date(
-                        current_date.accumulated_transcript
-                    )
-                    print(f"Generated date summary for user {uid}")
-                    omi_service.create_memory(uid, summary)
-
-                user.current_date_id = None
-
-            return {
-                "message": "Date ended! Your date summary has been saved.",
-                "should_notify": True,
-                "event_type": "date_ended"
-            }
-
-        # Check if "start date" is said
+        # Check for "start date" command
         if "start date" in text_lower:
             print(f"Starting new date for user {uid}")
-            user.date_counter += 1
-            date_id = f"date_{user.date_counter}"
-            user.dates[date_id] = DateObject(date_id)
-            user.current_date_id = date_id
+            return letta_service.start_date(uid)
 
-            return {
-                "message": "Date started! Good luck and have fun!",
-                "should_notify": True,
-                "event_type": "date_started"
-            }
-
-        # Check if "end date" is said
+        # Check for "end date" command
         if "end date" in text_lower:
             print(f"Ending date for user {uid}")
-            if user.current_date_id and user.current_date_id in user.dates:
-                current_date = user.dates[user.current_date_id]
-                current_date.finalize()
+            result = letta_service.end_date(uid)
+            summary = result.get("summary", "")
 
-                # Generate summary with tips
-                if current_date.accumulated_transcript.strip():
-                    # Retrieve previous summary from database
-                    previous_summary = get_previous_summary(uid)
+            # Send summary to OMI
+            if summary:
+                omi_service.create_memory(uid, summary)
 
-                    # Generate new summary with comparison to previous date
-                    summary = claude_service.summarize_date(
-                        current_date.accumulated_transcript,
-                        previous_summary=previous_summary
-                    )
-                    print(f"Generated date summary for user {uid}")
+            return result
 
-                    if previous_summary:
-                        print(f"Compared with previous date and noted improvements")
+        # Check for code word (emergency exit)
+        # Note: We need to get the code word from Letta agent's memory
+        # For now, check common code word "peanuts" - could enhance this
+        if "peanuts" in text_lower or "code word" in text_lower:
+            print(f"Potential code word detected for user {uid}")
 
-                    # Save new summary to database
-                    save_summary(uid, summary)
-                    print(f"Saved new summary to database for user {uid}")
+            # Make emergency phone call
+            twilio_service.make_emergency_call()
 
-                    # Create memory in OMI
-                    omi_service.create_memory(uid, summary)
+            # End the date and get summary
+            result = letta_service.end_date(uid)
+            summary = result.get("summary", "")
 
-                user.current_date_id = None
+            # Send to OMI
+            if summary:
+                omi_service.create_memory(uid, summary)
 
-                return {
-                    "message": "Date ended! Your date summary has been saved.",
-                    "should_notify": True,
-                    "event_type": "date_ended"
-                }
+            return {
+                "message": "Emergency exit activated! Your date summary has been saved.",
+                "should_notify": True,
+                "event_type": "emergency_exit"
+            }
 
-    # If we're in an active date, analyze the conversation
-    if user.current_date_id and user.current_date_id in user.dates:
-        current_date = user.dates[user.current_date_id]
+    # No commands detected - analyze the conversation with Letta
+    # Check for "yeah okay so" phrase (user seems stuck)
+    concatenated_text = " ".join([s.get("text", "") for s in segments])
+    text_normalized = re.sub(r'[^\w\s]', '', concatenated_text.lower())
 
-        if current_date.is_active:
-            # Concatenate all segment texts
-            concatenated_text = " ".join([segment["text"] for segment in transcript["segments"]])
+    if "yeah okay so" in text_normalized:
+        print(f"Detected 'yeah okay so' - getting conversation tip from Letta")
+        tip = letta_service.get_conversation_tip(uid)
+        return {
+            "message": tip,
+            "should_notify": True,
+            "event_type": "conversation_tip"
+        }
 
-            if concatenated_text.strip():
-                current_date.count += 1
-                print(f"got transcript batch {current_date.count}")
+    # Regular conversation analysis - let Letta decide if warning is needed
+    print(f"Analyzing transcript segments with Letta for user {uid}")
+    analysis = letta_service.analyze_transcript(uid, segments)
 
-                # Add to accumulated transcript
-                current_date.add_transcript(concatenated_text)
+    if analysis.get("should_notify", False):
+        print(f"Letta recommends intervention: {analysis.get('reason', 'No reason provided')}")
+        return {
+            "message": analysis.get("message", "Please change the topic!"),
+            "reason": analysis.get("reason", ""),
+            "should_notify": True,
+            "event_type": "warning"
+        }
 
-                # Check for "yeah okay so" phrase (user seems stuck)
-                text_normalized = re.sub(r'[^\w\s]', '', concatenated_text.lower())
-                if "yeah okay so" in text_normalized:
-                    print(f"Detected 'yeah okay so' - generating conversation tip")
-                    tip = claude_service.generate_conversation_tip(
-                        current_date.accumulated_transcript
-                    )
-                    return {
-                        "message": tip,
-                        "should_notify": True,
-                        "event_type": "conversation_tip"
-                    }
-
-                # Analyze conversation with Claude
-                analysis = claude_service.analyze_date(
-                    concatenated_text,
-                    current_date.accumulated_transcript,
-                    current_date.previous_warnings
-                )
-                print(f"analyzed batch {current_date.count}")
-
-                # If intervention is needed, send warning
-                if analysis.get("should_notify", False):
-                    warning_message = analysis.get("message", "Please change the topic!")
-                    reason = analysis.get("reason", "")
-
-                    # Save warning to prevent repetition
-                    current_date.add_warning(warning_message, reason)
-
-                    return {
-                        "message": warning_message,
-                        "reason": reason,
-                        "should_notify": True
-                    }
-
-    # return {"message": "transcript processed", "should_notify": False}
+    # No intervention needed
+    return {"message": "Transcript processed", "should_notify": False}

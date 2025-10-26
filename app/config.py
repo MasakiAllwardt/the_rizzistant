@@ -35,3 +35,6 @@ OMI_BASE_URL = "https://api.omi.me/v2"
 # Twilio configuration
 PHONE_NUMBER = os.environ.get("PHONE_NUMBER")
 TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
+
+# Letta configuration
+LETTA_API_KEY = os.environ.get("LETTA_API_KEY")
